@@ -1,103 +1,356 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import React, { useState } from "react";
+import { FileText, Download, Edit3 } from "lucide-react";
+
+// Import html2pdf.js secara dinamis
+let html2pdf;
+if (typeof window !== "undefined") {
+  import("html2pdf.js").then((module) => {
+    html2pdf = module.default;
+  });
+}
+
+// Fungsi untuk mendapatkan tanggal hari ini dalam format "DD MMMM YYYY"
+const getFormattedDate = () => {
+  const date = new Date();
+  const options = { day: "numeric", month: "long", year: "numeric" };
+  return date.toLocaleDateString("id-ID", options);
+};
+
+const SuratPenawaranGenerator = () => {
+  const [formData, setFormData] = useState({
+    kota: "Yogyakarta",
+    tanggal: getFormattedDate(), // Menggunakan fungsi baru untuk tanggal hari ini
+    kepada: "Bapak ......",
+    perihal: "Penawaran Pembuatan Karoseri",
+    penawaranAtas: "pembuatan karoseri body mikrobus",
+    harga: "138.000.000",
+    hargaTerbilang: "Seratus Tiga Puluh Delapan Juta Rupiah",
+    penandatangan: "Anton Gunanjati",
+    spesifikasi: {
+      modelBody: "JB5",
+      rangka: "Pipa Baja",
+      kacaDepan: "Laminated 2pcs",
+      kacaSamping: "Tempered Rayban Geser Bawah",
+      kacaBelakang: "Tempered Rayban",
+      pintuDepan: "Standar",
+      pintuBelakang: "Lipat",
+      lantai: "Plat Bordes",
+      bangku: "Standar Karoseri",
+      bangkuPenumpang: "17 Seats",
+      lampuDepan: "JB5",
+      lampuBelakang: "JB5",
+      wiper: "Mercy",
+      interior: "Cat + ACP",
+      plafon: "Dum Depan ABS",
+      bagasiPlafon: "Profile",
+      audioVisual: "DVD, TV, Power, Speaker",
+      wildop: "SR Chrome",
+      cat: "Sesuai Permintaan",
+    },
+  });
+
+  const [isEditing, setIsEditing] = useState(true);
+
+  const handleInputChange = (field, value) => {
+    if (field.includes(".")) {
+      const [parent, child] = field.split(".");
+      setFormData((prev) => ({
+        ...prev,
+        [parent]: {
+          ...prev[parent],
+          [child]: value,
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [field]: value,
+      }));
+    }
+  };
+
+  const formatRupiah = (angka) => {
+    return angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  };
+
+  const downloadAsPDF = () => {
+    const element = document.getElementById("surat-container");
+    const opt = {
+      margin: [8, 25.4, 25.4, 25.4],
+      filename: `Surat_Penawaran_${formData.kepada.replace(/\s/g, "_")}.pdf`,
+      image: { type: "jpeg", quality: 0.98 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+    };
+
+    if (html2pdf) {
+      html2pdf().from(element).set(opt).save();
+    }
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="max-w-4xl mx-auto p-4 md:p-6 bg-gray-50 min-h-screen pb-36">
+      <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        {/* Header Controls */}
+        <div className="bg-green-600 text-white p-4 flex justify-between items-center flex-wrap">
+          <div className="flex items-center space-x-2 mb-2 md:mb-0">
+            <FileText className="w-6 h-6" />
+            <h1 className="text-xl font-bold">
+              Generator Surat Penawaran Karoseri Aji Putra
+            </h1>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setIsEditing(!isEditing)}
+              className="flex items-center space-x-1 bg-green-500 hover:bg-green-700 text-center justify-center px-3 py-2 w-24 rounded transition-colors text-sm md:text-base">
+              <Edit3 className="w-4 h-4" />
+              <span>{isEditing ? "Preview" : "Edit"}</span>
+            </button>
+            <button
+              onClick={downloadAsPDF}
+              className="flex items-center space-x-1 bg-yellow-500 hover:bg-yellow-600 px-3 py-2 rounded transition-colors text-sm md:text-base">
+              <Download className="w-4 h-4" />
+              <span>Download PDF</span>
+            </button>
+          </div>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+        {/* Content Area */}
+        <div className="flex flex-col md:flex-row">
+          {/* Form Input Panel */}
+          {isEditing && (
+            <div className="w-full md:w-1/2 p-4 md:p-6 bg-gray-50 border-b md:border-r overflow-y-auto">
+              <h2 className="text-lg font-semibold mb-4 text-gray-800">
+                Data Surat
+              </h2>
+              <div className="space-y-4">
+                {/* General Data */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Kota
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.kota}
+                      onChange={(e) =>
+                        handleInputChange("kota", e.target.value)
+                      }
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tanggal
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.tanggal}
+                      onChange={(e) =>
+                        handleInputChange("tanggal", e.target.value)
+                      }
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Kepada
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.kepada}
+                    onChange={(e) =>
+                      handleInputChange("kepada", e.target.value)
+                    }
+                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Perihal
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.perihal}
+                    onChange={(e) =>
+                      handleInputChange("perihal", e.target.value)
+                    }
+                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Penawaran atas
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.penawaranAtas}
+                    onChange={(e) =>
+                      handleInputChange("penawaranAtas", e.target.value)
+                    }
+                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Harga (Rp)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.harga}
+                      onChange={(e) =>
+                        handleInputChange("harga", e.target.value)
+                      }
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Harga Terbilang
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.hargaTerbilang}
+                      onChange={(e) =>
+                        handleInputChange("hargaTerbilang", e.target.value)
+                      }
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Penandatangan
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.penandatangan}
+                    onChange={(e) =>
+                      handleInputChange("penandatangan", e.target.value)
+                    }
+                    className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  />
+                </div>
+
+                {/* Spesifikasi Karoseri */}
+                <h3 className="text-md font-semibold text-gray-800 mt-6 mb-3">
+                  Spesifikasi Karoseri
+                </h3>
+                {Object.entries(formData.spesifikasi).map(([key, value]) => (
+                  <div key={key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
+                      {key
+                        .replace(/([A-Z])/g, " $1")
+                        .replace(/^./, (str) => str.toUpperCase())}
+                    </label>
+                    <input
+                      type="text"
+                      value={value}
+                      onChange={(e) =>
+                        handleInputChange(`spesifikasi.${key}`, e.target.value)
+                      }
+                      className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Preview Panel */}
+          <div
+            className={`${
+              isEditing ? "w-full md:w-1/2" : "w-full"
+            } p-4 md:p-8 bg-white`}>
+            <div
+              id="surat-container"
+              className="max-w-full mx-auto bg-white text-[12px] sm:text-[14px]"
+              style={{ fontFamily: "Calibri, sans-serif" }}>
+              {/* Letterhead */}
+              <div className="text-center pb-2 px-0">
+                <img src="/header.png" alt="Header" className="w-full" />
+              </div>
+
+              {/* Date and Recipient */}
+              <div className="mb-4">
+                <div className="text-right mb-2">
+                  <p>
+                    {formData.kota}, {formData.tanggal}
+                  </p>
+                </div>
+                <div className="mb-2">
+                  <p>Kepada Yth.</p>
+                  <p className="font-medium">{formData.kepada}</p>
+                </div>
+                <div className="mb-0">
+                  <p className="font-bold">
+                    Perihal : <u>{formData.perihal}</u>
+                  </p>
+                </div>
+              </div>
+
+              {/* Body */}
+              <div className="mb-4">
+                <p className="mb-2">Dengan Hormat,</p>
+                <p className="mb-2">
+                  Melalui surat ini kami mengajukan penawaran atas{" "}
+                  <span className="font-bold">{formData.penawaranAtas}</span>{" "}
+                  seharga{" "}
+                  <span className="font-bold">
+                    Rp{formatRupiah(formData.harga)},00 (
+                    {formData.hargaTerbilang})
+                  </span>{" "}
+                  dengan spesifikasi sebagai berikut:
+                </p>
+
+                {/* Specifications */}
+                <div className="mb-4">
+                  <table className="w-full">
+                    <tbody>
+                      {Object.entries(formData.spesifikasi).map(
+                        ([key, value]) => (
+                          <tr key={key} className="print-preview-border">
+                            <td
+                              className="py-px pr-2 font-medium capitalize"
+                              style={{ width: "25%" }}>
+                              {key
+                                .replace(/([A-Z])/g, " $1")
+                                .replace(/^./, (str) => str.toUpperCase())}{" "}
+                            </td>
+                            <td className="py-px">: {value}</td>
+                          </tr>
+                        )
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                <p className="mb-4">
+                  Demikian surat Penawaran yang dapat kami sampaikan atas
+                  perhatiannya kami ucapkan terima kasih.
+                </p>
+
+                {/* Signature */}
+                <div className="text-left">
+                  <p className="mb-2">Hormat Kami,</p>
+                  <img
+                    src="/ttd.png"
+                    alt="Tanda Tangan"
+                    style={{ width: "150px", marginBottom: "1rem" }}
+                  />
+                  <p className="font-bold -mt-4">{formData.penandatangan}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default SuratPenawaranGenerator;
