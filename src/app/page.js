@@ -1,27 +1,103 @@
 "use client";
 
 import React, { useState } from "react";
-import { FileText, Download, Edit3 } from "lucide-react";
+import { FileText, Download, Edit3, Send } from "lucide-react";
 
-// Import html2pdf.js secara dinamis
+// ===== html2pdf.js dynamic import =====
 let html2pdf;
 if (typeof window !== "undefined") {
-  import("html2pdf.js").then((module) => {
-    html2pdf = module.default;
+  import("html2pdf.js").then((mod) => {
+    html2pdf = mod.default;
   });
 }
 
-// Fungsi untuk mendapatkan tanggal hari ini dalam format "DD MMMM YYYY"
+// ===== Config nomor WhatsApp tujuan (format internasional tanpa +) =====
+const WA_TARGET_NUMBER = "6281234567890"; // ganti sesuai kebutuhan
+
+// ===== Tanggal lokal ID =====
 const getFormattedDate = () => {
   const date = new Date();
   const options = { day: "numeric", month: "long", year: "numeric" };
   return date.toLocaleDateString("id-ID", options);
 };
 
+// ===== Helper: format rupiah titik =====
+const formatRupiah = (angka) =>
+  angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+// ===== Helper: generate PDF jadi Blob =====
+async function generatePdfBlob(elementId, filenameHint = "Surat_Penawaran") {
+  const element = document.getElementById(elementId);
+  if (!element) throw new Error(`#${elementId} tidak ditemukan`);
+
+  const opt = {
+    margin: [8, 25.4, 25.4, 25.4],
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+  };
+
+  // pastikan modul siap
+  if (!html2pdf) {
+    const mod = await import("html2pdf.js");
+    html2pdf = mod.default;
+  }
+
+  const worker = html2pdf().from(element).set(opt);
+
+  // Beberapa versi: output("blob"), ada yg outputPdf("blob")
+  if (typeof worker.outputPdf === "function") {
+    return await worker.outputPdf("blob");
+  } else {
+    return await worker.output("blob");
+  }
+}
+
+// ===== Helper: download file dari Blob =====
+function downloadBlob(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ===== Helper: upload ke /api/upload, return url =====
+async function uploadBlobToVercelBlob(blob, filename) {
+  const fd = new FormData();
+  fd.append("file", new File([blob], filename, { type: "application/pdf" }));
+  const res = await fetch("/api/upload", { method: "POST", body: fd });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.error || "Gagal upload file");
+  }
+  const { url } = await res.json();
+  return url;
+}
+
+// ===== Helper: buka WhatsApp dengan teks berisi link =====
+function openWhatsAppWithLink(phone, url, extraText) {
+  const text = encodeURIComponent(`${extraText ? extraText + "\n" : ""}${url}`);
+  window.open(`https://wa.me/${phone}?text=${text}`, "_blank");
+}
+
+// ===== Helper: share file ke aplikasi (mobile) =====
+async function shareFileIfSupported(file) {
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: "Surat Penawaran",
+      text: "Halo, berikut surat penawarannya.",
+    });
+    return true;
+  }
+  return false;
+}
+
 const SuratPenawaranGenerator = () => {
   const [formData, setFormData] = useState({
     kota: "Yogyakarta",
-    tanggal: getFormattedDate(), // Menggunakan fungsi baru untuk tanggal hari ini
+    tanggal: getFormattedDate(),
     kepada: "Bapak ......",
     perihal: "Penawaran Pembuatan Karoseri",
     penawaranAtas: "pembuatan karoseri body mikrobus",
@@ -52,6 +128,7 @@ const SuratPenawaranGenerator = () => {
   });
 
   const [isEditing, setIsEditing] = useState(true);
+  const [busy, setBusy] = useState(false);
 
   const handleInputChange = (field, value) => {
     if (field.includes(".")) {
@@ -71,22 +148,47 @@ const SuratPenawaranGenerator = () => {
     }
   };
 
-  const formatRupiah = (angka) => {
-    return angka.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  const handleDownloadPdf = async () => {
+    try {
+      setBusy(true);
+      const filename = `Surat_Penawaran_${formData.kepada.replace(
+        /\s/g,
+        "_"
+      )}.pdf`;
+      const blob = await generatePdfBlob("surat-container", filename);
+      downloadBlob(blob, filename);
+    } catch (e) {
+      alert(e.message || "Gagal membuat PDF");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const downloadAsPDF = () => {
-    const element = document.getElementById("surat-container");
-    const opt = {
-      margin: [8, 25.4, 25.4, 25.4],
-      filename: `Surat_Penawaran_${formData.kepada.replace(/\s/g, "_")}.pdf`,
-      image: { type: "jpeg", quality: 0.98 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    };
+  const handleSendWhatsApp = async () => {
+    try {
+      setBusy(true);
+      const filename = `Surat_Penawaran_${formData.kepada.replace(
+        /\s/g,
+        "_"
+      )}.pdf`;
+      const blob = await generatePdfBlob("surat-container", filename);
+      const file = new File([blob], filename, { type: "application/pdf" });
 
-    if (html2pdf) {
-      html2pdf().from(element).set(opt).save();
+      // Coba Web Share API (mobile) dengan attach file langsung
+      const shared = await shareFileIfSupported(file);
+      if (shared) {
+        setBusy(false);
+        return;
+      }
+
+      // Fallback: upload ke Vercel Blob -> buka WA dengan link
+      const url = await uploadBlobToVercelBlob(blob, filename);
+      const extraText = `Halo, ini surat penawaran untuk ${formData.kepada} (${formData.perihal}).`;
+      openWhatsAppWithLink(WA_TARGET_NUMBER, url, extraText);
+    } catch (e) {
+      alert(e.message || "Gagal mengirim via WhatsApp");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -101,16 +203,28 @@ const SuratPenawaranGenerator = () => {
               Generator Surat Penawaran Karoseri Aji Putra
             </h1>
           </div>
-          <div className="flex space-x-2">
+          <div className="flex gap-2">
             <button
               onClick={() => setIsEditing(!isEditing)}
-              className="flex items-center space-x-1 bg-green-500 hover:bg-green-700 text-center justify-center px-3 py-2 w-24 rounded transition-colors text-sm md:text-base">
+              disabled={busy}
+              className="flex items-center space-x-1 bg-green-500 hover:bg-green-700 px-3 py-2 rounded transition-colors text-sm md:text-base disabled:opacity-60">
               <Edit3 className="w-4 h-4" />
               <span>{isEditing ? "Preview" : "Edit"}</span>
             </button>
+
             <button
-              onClick={downloadAsPDF}
-              className="flex items-center space-x-1 bg-yellow-500 hover:bg-yellow-600 px-3 py-2 rounded transition-colors text-sm md:text-base">
+              onClick={handleSendWhatsApp}
+              disabled={busy}
+              className="flex items-center space-x-1 bg-emerald-500 hover:bg-emerald-600 px-3 py-2 rounded transition-colors text-sm md:text-base disabled:opacity-60"
+              title="Kirim via WhatsApp">
+              <Send className="w-4 h-4" />
+              <span>{busy ? "Memproses..." : "Kirim WA"}</span>
+            </button>
+
+            <button
+              onClick={handleDownloadPdf}
+              disabled={busy}
+              className="flex items-center space-x-1 bg-yellow-500 hover:bg-yellow-600 px-3 py-2 rounded transition-colors text-sm md:text-base disabled:opacity-60">
               <Download className="w-4 h-4" />
               <span>Download PDF</span>
             </button>
@@ -126,7 +240,6 @@ const SuratPenawaranGenerator = () => {
                 Data Surat
               </h2>
               <div className="space-y-4">
-                {/* General Data */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -155,6 +268,7 @@ const SuratPenawaranGenerator = () => {
                     />
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Kepada
@@ -168,6 +282,7 @@ const SuratPenawaranGenerator = () => {
                     className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Perihal
@@ -181,6 +296,7 @@ const SuratPenawaranGenerator = () => {
                     className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Penawaran atas
@@ -194,6 +310,7 @@ const SuratPenawaranGenerator = () => {
                     className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
                   />
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -222,6 +339,7 @@ const SuratPenawaranGenerator = () => {
                     />
                   </div>
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Penandatangan
@@ -236,10 +354,10 @@ const SuratPenawaranGenerator = () => {
                   />
                 </div>
 
-                {/* Spesifikasi Karoseri */}
                 <h3 className="text-md font-semibold text-gray-800 mt-6 mb-3">
                   Spesifikasi Karoseri
                 </h3>
+
                 {Object.entries(formData.spesifikasi).map(([key, value]) => (
                   <div key={key}>
                     <label className="block text-sm font-medium text-gray-700 mb-1 capitalize">
@@ -347,6 +465,7 @@ const SuratPenawaranGenerator = () => {
               </div>
             </div>
           </div>
+          {/* End Preview */}
         </div>
       </div>
     </div>
