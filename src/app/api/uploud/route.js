@@ -3,10 +3,10 @@ import { put } from "@vercel/blob";
 
 export const runtime = "edge"; // opsional, biar cepat
 
-export async function POST(req: NextRequest) {
+export async function POST(req) {
   try {
     const formData = await req.formData();
-    const file = formData.get("file") as File | null;
+    const file = formData.get("file");
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     const { url } = await put(filename, file, { access: "public" });
 
     return NextResponse.json({ url });
-  } catch (err: any) {
+  } catch (err) {
     return NextResponse.json(
       { error: err?.message || "Upload failed" },
       { status: 500 }
